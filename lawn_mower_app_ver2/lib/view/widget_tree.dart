@@ -189,7 +189,7 @@ class WidgetTree extends StatelessWidget {
         return  ValueListenableBuilder(
           valueListenable: bluetoothDeviceAdressNotifier,
           builder: (context, connection, child) {
-            return gpsPage();
+            return gpsPage(connection: connection!);
           },
         );
       default:

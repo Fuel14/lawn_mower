@@ -9,10 +9,23 @@ import 'package:latlong2/latlong.dart';
 import 'package:lawn_mower_app_ver2/data/notifiers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class gpsPage extends StatefulWidget {
-  const gpsPage({super.key});
+class OptimizedGeoData {
+  final String latPrefix;
+  final String longPrefix;
+  final List<String> latSuffixes;
+  final List<String> longSuffixes;
 
-  // final BluetoothConnection connection;
+  OptimizedGeoData({
+    required this.latPrefix,
+    required this.longPrefix,
+    required this.latSuffixes,
+    required this.longSuffixes,
+  });
+}
+class gpsPage extends StatefulWidget {
+  const gpsPage({super.key,required this.connection});
+
+  final BluetoothConnection connection;
   @override
   State<gpsPage> createState() => _gpsPageState();
 }
@@ -25,21 +38,21 @@ class _gpsPageState extends State<gpsPage> {
   int _selectedIndex = -1;
   late List<LatLng> _offpolygonPoints = [];
 
-  // StreamSubscription? _readSubscription;
-  // final List<String> _receivedInput = [];
-  // @override
-  // void initState() {
-  //   if (subscribtionStateNotifier.value == false) {
-  //     _readSubscription = widget.connection.input?.listen((event) {
-  //       if (mounted) {
-  //         setState(() => _receivedInput.add(utf8.decode(event)));
-  //       }
-  //     });
-  //     readSubscriptionNotifier.value = _readSubscription;
-  //     subscribtionStateNotifier.value = true;
-  //   }
-  //   super.initState();
-  // }
+  StreamSubscription? _readSubscription;
+  final List<String> _receivedInput = [];
+  @override
+  void initState() {
+    if (subscribtionStateNotifier.value == false) {
+      _readSubscription = widget.connection.input?.listen((event) {
+        if (mounted) {
+          setState(() => _receivedInput.add(utf8.decode(event)));
+        }
+      });
+      readSubscriptionNotifier.value = _readSubscription;
+      subscribtionStateNotifier.value = true;
+    }
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -223,10 +236,12 @@ class _gpsPageState extends State<gpsPage> {
                         setState(() {
                           _offpolygonPoints = generateMowingPath(_polygonPoints, cuttingWidth: 1.0);
                           _savePolygon();
+                          final bluetoothMessage = createOptimizedBluetoothMessage(_offpolygonPoints);
+                          widget.connection.writeString(bluetoothMessage);
                         });
                       }
                     },
-                    child: Text('Save list'),
+                    child: Text('Save list & Sent'),
                   ),
                 ],
               ),
@@ -255,7 +270,7 @@ class _gpsPageState extends State<gpsPage> {
 
 
 List<LatLng> generateMowingPath(List<LatLng> polygonVertices, {
-  double cuttingWidth = 1.0, // 5 meter cutting width
+  double cuttingWidth = 1.0, // 1 meter cutting width
   double overlap = 0.2, // 20% overlap between passes
 }) {
   final Distance distance = Distance();
@@ -334,5 +349,66 @@ bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
     }
   }
   return inside;
+}
+
+OptimizedGeoData optimizeGeoData(List<LatLng> points) {
+  if (points.isEmpty) {
+    return OptimizedGeoData(
+    latPrefix: '',
+    longPrefix: '',
+    latSuffixes: [],
+    longSuffixes: [],
+  );
+  }
+
+  // Convert all points to strings with full precision
+  final latStrings = points.map((p) => p.latitude.toString()).toList();
+  final longStrings = points.map((p) => p.longitude.toString()).toList();
+
+  // Find common prefix for latitudes
+  String latPrefix = _findCommonPrefix(latStrings);
+  // Find common prefix for longitudes
+  String longPrefix = _findCommonPrefix(longStrings);
+
+  // Extract suffixes (the parts after the common prefix)
+  final latSuffixes = latStrings.map((s) => 
+      s.substring(latPrefix.length)).toList();
+  final longSuffixes = longStrings.map((s) => 
+      s.substring(longPrefix.length)).toList();
+
+  return OptimizedGeoData(
+    latPrefix: latPrefix,
+    longPrefix: longPrefix,
+    latSuffixes: latSuffixes,
+    longSuffixes: longSuffixes,
+  );
+}
+String _findCommonPrefix(List<String> strings) {
+  if (strings.isEmpty) return '';
+  
+  String prefix = strings[0];
+  for (int i = 1; i < strings.length; i++) {
+    while (!strings[i].startsWith(prefix)) {
+      prefix = prefix.substring(0, prefix.length - 1);
+      if (prefix.isEmpty) return '';
+    }
+  }
+  return prefix;
+}
+
+String createOptimizedBluetoothMessage(List<LatLng> points) {
+  final optimized = optimizeGeoData(points);
+  
+  // Create compact message format:
+  // "PREFIX|latPrefix|longPrefix|latSuffix1,longSuffix1|latSuffix2,longSuffix2|..."
+  final buffer = StringBuffer();
+  buffer.write('PREFIX|${optimized.latPrefix}|${optimized.longPrefix}|');
+  
+  for (int i = 0; i < optimized.latSuffixes.length; i++) {
+    if (i > 0) buffer.write('|');
+    buffer.write('${optimized.latSuffixes[i]},${optimized.longSuffixes[i]}');
+  }
+  
+  return buffer.toString();
 }
 }
