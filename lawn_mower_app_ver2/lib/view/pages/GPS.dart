@@ -22,8 +22,9 @@ class OptimizedGeoData {
     required this.longSuffixes,
   });
 }
+
 class gpsPage extends StatefulWidget {
-  const gpsPage({super.key,required this.connection});
+  const gpsPage({super.key, required this.connection});
 
   final BluetoothConnection connection;
   @override
@@ -88,12 +89,17 @@ class _gpsPageState extends State<gpsPage> {
 
             children: [
               TileLayer(
-                // Bring your own tiles
                 urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png', // For demonstration only
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName:
-                    'com.example.app', // Add your app identifier
-                // And many more recommended properties!
+                    'com.KMITL.lawnmowerapp', // REAL identifier
+                tileProvider: NetworkTileProvider(
+                  headers: {
+                    'User-Agent':
+                        'LawnMowerApp/2.0 (com.yourcompany.lawnmowerapp)',
+                  },
+                ),
+                keepBuffer: 30,
               ),
               RichAttributionWidget(
                 // Include a stylish prebuilt attribution widget that meets all requirments
@@ -234,9 +240,15 @@ class _gpsPageState extends State<gpsPage> {
                       }
                       if (_polygonPoints.length > 2) {
                         setState(() {
-                          _offpolygonPoints = generateMowingPath(_polygonPoints, cuttingWidth: 1.0);
+                          _offpolygonPoints = generateMowingPath(
+                            _polygonPoints,
+                            cuttingWidth: 1.0,
+                          );
                           _savePolygon();
-                          final bluetoothMessage = createOptimizedBluetoothMessage(_offpolygonPoints);
+                          final bluetoothMessage =
+                              createOptimizedBluetoothMessage(
+                                _offpolygonPoints,
+                              );
                           widget.connection.writeString(bluetoothMessage);
                         });
                       }
@@ -268,147 +280,152 @@ class _gpsPageState extends State<gpsPage> {
     );
   }
 
+  List<LatLng> generateMowingPath(
+    List<LatLng> polygonVertices, {
+    double cuttingWidth = 1.0, // 1 meter cutting width
+    double overlap = 0.2, // 20% overlap between passes
+  }) {
+    final Distance distance = Distance();
+    final List<LatLng> mowingPath = [];
 
-List<LatLng> generateMowingPath(List<LatLng> polygonVertices, {
-  double cuttingWidth = 1.0, // 1 meter cutting width
-  double overlap = 0.2, // 20% overlap between passes
-}) {
-  final Distance distance = Distance();
-  final List<LatLng> mowingPath = [];
-  
-  if (polygonVertices.length < 3) return mowingPath;
+    if (polygonVertices.length < 3) return mowingPath;
 
-  // 1. Calculate polygon bounding box
-  double minLat = polygonVertices[0].latitude;
-  double maxLat = polygonVertices[0].latitude;
-  double minLng = polygonVertices[0].longitude;
-  double maxLng = polygonVertices[0].longitude;
+    // 1. Calculate polygon bounding box
+    double minLat = polygonVertices[0].latitude;
+    double maxLat = polygonVertices[0].latitude;
+    double minLng = polygonVertices[0].longitude;
+    double maxLng = polygonVertices[0].longitude;
 
-  for (final point in polygonVertices) {
-    minLat = point.latitude < minLat ? point.latitude : minLat;
-    maxLat = point.latitude > maxLat ? point.latitude : maxLat;
-    minLng = point.longitude < minLng ? point.longitude : minLng;
-    maxLng = point.longitude > maxLng ? point.longitude : maxLng;
-  }
+    for (final point in polygonVertices) {
+      minLat = point.latitude < minLat ? point.latitude : minLat;
+      maxLat = point.latitude > maxLat ? point.latitude : maxLat;
+      minLng = point.longitude < minLng ? point.longitude : minLng;
+      maxLng = point.longitude > maxLng ? point.longitude : maxLng;
+    }
 
-  // 2. Calculate step sizes (adjusted for overlap)
-  final double effectiveWidth = cuttingWidth * (1 - overlap);
-  final double latStep = effectiveWidth / 111320; // 1° latitude ≈ 111,320m
-  final double avgLat = (minLat + maxLat) / 2;
-  final double lngStep = effectiveWidth / (111320 * cos(avgLat * pi / 180));
+    // 2. Calculate step sizes (adjusted for overlap)
+    final double effectiveWidth = cuttingWidth * (1 - overlap);
+    final double latStep = effectiveWidth / 111320; // 1° latitude ≈ 111,320m
+    final double avgLat = (minLat + maxLat) / 2;
+    final double lngStep = effectiveWidth / (111320 * cos(avgLat * pi / 180));
 
-  // 3. Generate parallel mowing lines (alternating directions)
-  bool reverseDirection = false;
-  for (double lat = minLat; lat <= maxLat; lat += latStep) {
-    // Find min/max longitude for this latitude
-    double lineMinLng = maxLng;
-    double lineMaxLng = minLng;
-    
-    for (double lng = minLng; lng <= maxLng; lng += lngStep) {
-      final testPoint = LatLng(lat, lng);
-      if (_isPointInPolygon(testPoint, polygonVertices)) {
-        lineMinLng = lng < lineMinLng ? lng : lineMinLng;
-        lineMaxLng = lng > lineMaxLng ? lng : lineMaxLng;
+    // 3. Generate parallel mowing lines (alternating directions)
+    bool reverseDirection = false;
+    for (double lat = minLat; lat <= maxLat; lat += latStep) {
+      // Find min/max longitude for this latitude
+      double lineMinLng = maxLng;
+      double lineMaxLng = minLng;
+
+      for (double lng = minLng; lng <= maxLng; lng += lngStep) {
+        final testPoint = LatLng(lat, lng);
+        if (_isPointInPolygon(testPoint, polygonVertices)) {
+          lineMinLng = lng < lineMinLng ? lng : lineMinLng;
+          lineMaxLng = lng > lineMaxLng ? lng : lineMaxLng;
+        }
+      }
+
+      // Add points in alternating directions (boustrophedon pattern)
+      if (lineMinLng < lineMaxLng) {
+        final List<LatLng> linePoints = [];
+        double lng = reverseDirection ? lineMaxLng : lineMinLng;
+        final double endLng = reverseDirection ? lineMinLng : lineMaxLng;
+        final double step = reverseDirection ? -lngStep : lngStep;
+
+        while ((step > 0 && lng <= endLng) || (step < 0 && lng >= endLng)) {
+          linePoints.add(LatLng(lat, lng));
+          lng += step;
+        }
+
+        if (reverseDirection) linePoints.reversed;
+        mowingPath.addAll(linePoints);
+        reverseDirection = !reverseDirection;
       }
     }
 
-    // Add points in alternating directions (boustrophedon pattern)
-    if (lineMinLng < lineMaxLng) {
-      final List<LatLng> linePoints = [];
-      double lng = reverseDirection ? lineMaxLng : lineMinLng;
-      final double endLng = reverseDirection ? lineMinLng : lineMaxLng;
-      final double step = reverseDirection ? -lngStep : lngStep;
+    return mowingPath;
+  }
 
-      while ((step > 0 && lng <= endLng) || (step < 0 && lng >= endLng)) {
-        linePoints.add(LatLng(lat, lng));
-        lng += step;
+  bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
+    // Ray casting algorithm implementation
+    bool inside = false;
+    for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      final LatLng vertexI = polygon[i];
+      final LatLng vertexJ = polygon[j];
+
+      if (((vertexI.longitude > point.longitude) !=
+              (vertexJ.longitude > point.longitude)) &&
+          (point.latitude <
+              (vertexJ.latitude - vertexI.latitude) *
+                      (point.longitude - vertexI.longitude) /
+                      (vertexJ.longitude - vertexI.longitude) +
+                  vertexI.latitude)) {
+        inside = !inside;
       }
-
-      if (reverseDirection) linePoints.reversed;
-      mowingPath.addAll(linePoints);
-      reverseDirection = !reverseDirection;
     }
+    return inside;
   }
 
-  return mowingPath;
-}
-
-bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
-  // Ray casting algorithm implementation
-  bool inside = false;
-  for (int i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    final LatLng vertexI = polygon[i];
-    final LatLng vertexJ = polygon[j];
-
-    if (((vertexI.longitude > point.longitude) != (vertexJ.longitude > point.longitude)) &&
-        (point.latitude < (vertexJ.latitude - vertexI.latitude) *
-                (point.longitude - vertexI.longitude) /
-                (vertexJ.longitude - vertexI.longitude) +
-            vertexI.latitude)) {
-      inside = !inside;
+  OptimizedGeoData optimizeGeoData(List<LatLng> points) {
+    if (points.isEmpty) {
+      return OptimizedGeoData(
+        latPrefix: '',
+        longPrefix: '',
+        latSuffixes: [],
+        longSuffixes: [],
+      );
     }
-  }
-  return inside;
-}
 
-OptimizedGeoData optimizeGeoData(List<LatLng> points) {
-  if (points.isEmpty) {
+    // Convert all points to strings with full precision
+    final latStrings = points.map((p) => p.latitude.toString()).toList();
+    final longStrings = points.map((p) => p.longitude.toString()).toList();
+
+    // Find common prefix for latitudes
+    String latPrefix = _findCommonPrefix(latStrings);
+    // Find common prefix for longitudes
+    String longPrefix = _findCommonPrefix(longStrings);
+
+    // Extract suffixes (the parts after the common prefix)
+    final latSuffixes = latStrings
+        .map((s) => s.substring(latPrefix.length))
+        .toList();
+    final longSuffixes = longStrings
+        .map((s) => s.substring(longPrefix.length))
+        .toList();
+
     return OptimizedGeoData(
-    latPrefix: '',
-    longPrefix: '',
-    latSuffixes: [],
-    longSuffixes: [],
-  );
+      latPrefix: latPrefix,
+      longPrefix: longPrefix,
+      latSuffixes: latSuffixes,
+      longSuffixes: longSuffixes,
+    );
   }
 
-  // Convert all points to strings with full precision
-  final latStrings = points.map((p) => p.latitude.toString()).toList();
-  final longStrings = points.map((p) => p.longitude.toString()).toList();
+  String _findCommonPrefix(List<String> strings) {
+    if (strings.isEmpty) return '';
 
-  // Find common prefix for latitudes
-  String latPrefix = _findCommonPrefix(latStrings);
-  // Find common prefix for longitudes
-  String longPrefix = _findCommonPrefix(longStrings);
-
-  // Extract suffixes (the parts after the common prefix)
-  final latSuffixes = latStrings.map((s) => 
-      s.substring(latPrefix.length)).toList();
-  final longSuffixes = longStrings.map((s) => 
-      s.substring(longPrefix.length)).toList();
-
-  return OptimizedGeoData(
-    latPrefix: latPrefix,
-    longPrefix: longPrefix,
-    latSuffixes: latSuffixes,
-    longSuffixes: longSuffixes,
-  );
-}
-String _findCommonPrefix(List<String> strings) {
-  if (strings.isEmpty) return '';
-  
-  String prefix = strings[0];
-  for (int i = 1; i < strings.length; i++) {
-    while (!strings[i].startsWith(prefix)) {
-      prefix = prefix.substring(0, prefix.length - 1);
-      if (prefix.isEmpty) return '';
+    String prefix = strings[0];
+    for (int i = 1; i < strings.length; i++) {
+      while (!strings[i].startsWith(prefix)) {
+        prefix = prefix.substring(0, prefix.length - 1);
+        if (prefix.isEmpty) return '';
+      }
     }
+    return prefix;
   }
-  return prefix;
-}
 
-String createOptimizedBluetoothMessage(List<LatLng> points) {
-  final optimized = optimizeGeoData(points);
-  
-  // Create compact message format:
-  // "PREFIX|latPrefix|longPrefix|latSuffix1,longSuffix1|latSuffix2,longSuffix2|..."
-  final buffer = StringBuffer();
-  buffer.write('PREFIX|${optimized.latPrefix}|${optimized.longPrefix}|');
-  
-  for (int i = 0; i < optimized.latSuffixes.length; i++) {
-    if (i > 0) buffer.write('|');
-    buffer.write('${optimized.latSuffixes[i]},${optimized.longSuffixes[i]}');
+  String createOptimizedBluetoothMessage(List<LatLng> points) {
+    final optimized = optimizeGeoData(points);
+
+    // Create compact message format:
+    // "PREFIX|latPrefix|longPrefix|latSuffix1,longSuffix1|latSuffix2,longSuffix2|..."
+    final buffer = StringBuffer();
+    buffer.write('PREFIX|${optimized.latPrefix}|${optimized.longPrefix}|');
+
+    for (int i = 0; i < optimized.latSuffixes.length; i++) {
+      if (i > 0) buffer.write('|');
+      buffer.write('${optimized.latSuffixes[i]},${optimized.longSuffixes[i]}');
+    }
+
+    return buffer.toString();
   }
-  
-  return buffer.toString();
-}
 }

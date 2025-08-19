@@ -20,28 +20,10 @@ class HomePage extends StatelessWidget {
                 child: Column(
                   children: [
                     FittedBox(
-                      child: Text(
-                        'Rasicm with Elong Ma',
-                        style: KTextStyle.welcomTitleText,
-                      ),
                     ),
                     SizedBox(height: 20.0),
                     HeroWidget(),
                     SizedBox(height: 20.0),
-                    Containerwidget(
-                      title: 'Black',
-                      description:
-                          'Black People, Theft, Run fast, Belong in jail if not fast enough',
-                    ),
-                    Containerwidget(
-                      title: 'Yellow',
-                      description:
-                          'Eat dog, have no daughter, small PP, good at math',
-                    ),
-                    Containerwidget(
-                      title: 'White',
-                      description: 'So fat, Woke af',
-                    ),
                   ],
                 ),
               );
