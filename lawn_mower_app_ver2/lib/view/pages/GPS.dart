@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_classic/flutter_blue_classic.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lawn_mower_app_ver2/data/notifiers.dart';
-import 'package:url_launcher/url_launcher.dart';
-
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 class OptimizedGeoData {
   final String latPrefix;
   final String longPrefix;
@@ -24,9 +24,8 @@ class OptimizedGeoData {
 }
 
 class gpsPage extends StatefulWidget {
-  const gpsPage({super.key, required this.connection});
+  const gpsPage({super.key});
 
-  final BluetoothConnection connection;
   @override
   State<gpsPage> createState() => _gpsPageState();
 }
@@ -38,136 +37,203 @@ class _gpsPageState extends State<gpsPage> {
   bool _isInteractive = true;
   int _selectedIndex = -1;
   late List<LatLng> _offpolygonPoints = [];
+  LatLng? _currentLocation;
+  bool _isLoadingLocation = false;
+  StreamSubscription<Position>? _positionStreamSubscription;
 
-  StreamSubscription? _readSubscription;
-  final List<String> _receivedInput = [];
   @override
   void initState() {
-    if (subscribtionStateNotifier.value == false) {
-      _readSubscription = widget.connection.input?.listen((event) {
-        if (mounted) {
-          setState(() => _receivedInput.add(utf8.decode(event)));
-        }
-      });
-      readSubscriptionNotifier.value = _readSubscription;
-      subscribtionStateNotifier.value = true;
-    }
     super.initState();
+    _checkLocationPermission();
   }
 
   @override
-  Widget build(BuildContext context) {
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.location.status;
+    if (status.isGranted) {
+      _getCurrentLocation();
+      _startLocationUpdates();
+    } else if (status.isDenied) {
+      final result = await Permission.location.request();
+      if (result.isGranted) {
+        _getCurrentLocation();
+        _startLocationUpdates();
+      }
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() => _isLoadingLocation = true);
+    
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      
+      setState(() {
+        _currentLocation = LatLng(position.latitude, position.longitude);
+        _isLoadingLocation = false;
+      });
+      
+      // Center map on current location
+      _mapController.move(_currentLocation!, 15);
+      
+    } catch (e) {
+      setState(() => _isLoadingLocation = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error getting location: $e')),
+      );
+    }
+  }
+
+  void _startLocationUpdates() {
+    _positionStreamSubscription = Geolocator.getPositionStream().listen((Position position) {
+      if (mounted) {
+        setState(() {
+          _currentLocation = LatLng(position.latitude, position.longitude);
+        });
+      }
+    });
+  }
+
+  void _stopLocationUpdates() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+  }
+  @override
+    Widget build(BuildContext context) {
     return Column(
       children: [
         Expanded(
-          flex: 7, // 70% of space
-          child: FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: LatLng(
-                13.7304,
-                100.7749,
-              ), // Center the map over London
-              initialZoom: 15,
-              onTap: (_, latlng) {
-                if (_isDrawing) {
-                  setState(() => _polygonPoints.add(latlng));
-                }
-                if (_selectedIndex != -1) {
-                  setState(() {
-                    _polygonPoints[_selectedIndex] = latlng;
-                    _selectedIndex = -1;
-                  });
-                }
-              },
-              interactionOptions: InteractionOptions(
-                flags: _isInteractive == true
-                    ? InteractiveFlag.all
-                    : InteractiveFlag.none,
-              ),
-            ),
-
+          flex: 7,
+          child: Stack(
             children: [
-              TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName:
-                    'com.KMITL.lawnmowerapp', // REAL identifier
-                tileProvider: NetworkTileProvider(
-                  headers: {
-                    'User-Agent':
-                        'LawnMowerApp/2.0 (com.yourcompany.lawnmowerapp)',
+              FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _currentLocation ?? LatLng(13.7304, 100.7749),
+                  initialZoom: 15,
+                  onTap: (_, latlng) {
+                    if (_isDrawing) {
+                      setState(() => _polygonPoints.add(latlng));
+                    }
+                    if (_selectedIndex != -1) {
+                      setState(() {
+                        _polygonPoints[_selectedIndex] = latlng;
+                        _selectedIndex = -1;
+                      });
+                    }
                   },
+                  interactionOptions: InteractionOptions(
+                    flags: _isInteractive == true
+                        ? InteractiveFlag.all
+                        : InteractiveFlag.none,
+                  ),
                 ),
-                keepBuffer: 30,
-              ),
-              RichAttributionWidget(
-                // Include a stylish prebuilt attribution widget that meets all requirments
-                attributions: [
-                  TextSourceAttribution(
-                    'OpenStreetMap contributors',
-                    onTap: () {}, // (external)
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.KMITL.lawnmowerapp',
+                    tileProvider: NetworkTileProvider(
+                      headers: {
+                        'User-Agent': 'LawnMowerApp/2.0 (com.yourcompany.lawnmowerapp)',
+                      },
+                    ),
+                    keepBuffer: 30,
+                  ),
+                  RichAttributionWidget(
+                    attributions: [
+                      TextSourceAttribution(
+                        'OpenStreetMap contributors',
+                        onTap: () {},
+                      ),
+                    ],
+                  ),
+                  // Current location marker
+                  if (_currentLocation != null)
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _currentLocation!,
+                          width: 40,
+                          height: 40,
+                          child: Icon(
+                            Icons.my_location,
+                            color: Colors.blue,
+                            size: 30,
+                          ),
+                        ),
+                      ],
+                    ),
+                  // Existing markers
+                  MarkerLayer(
+                    markers: _polygonPoints.asMap().entries.map((entry) {
+                      int index = entry.key;
+                      LatLng point = entry.value;
+                      return Marker(
+                        point: point,
+                        width: 100,
+                        height: 125,
+                        child: GestureDetector(
+                          onLongPress: () {
+                            setState(() {
+                              _isDrawing = false;
+                              _selectedIndex = index;
+                            });
+                          },
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${index + 1}: ${point.latitude.toStringAsFixed(6)},${point.longitude.toStringAsFixed(6)}',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 8,
+                                ),
+                              ),
+                              Icon(
+                                Icons.location_pin,
+                                color: _selectedIndex == index
+                                    ? Colors.blue
+                                    : Colors.red,
+                                size: 40,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  PolygonLayer(
+                    polygons: [
+                      if (_polygonPoints.length > 2)
+                        Polygon(
+                          points: _polygonPoints,
+                          color: Colors.green.withOpacity(0.3),
+                          borderColor: Colors.green,
+                          borderStrokeWidth: 2,
+                        ),
+                      if (_offpolygonPoints.length > 2)
+                        Polygon(
+                          points: _offpolygonPoints,
+                          color: Colors.red.withOpacity(0.3),
+                          borderColor: Colors.red,
+                          borderStrokeWidth: 2,
+                        ),
+                    ],
                   ),
                 ],
               ),
-              MarkerLayer(
-                markers: _polygonPoints.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  LatLng point = entry.value;
-                  return Marker(
-                    point: point,
-                    width: 100,
-                    height: 125,
-                    child: GestureDetector(
-                      onLongPress: () {
-                        setState(() {
-                          _isDrawing = false;
-                          _selectedIndex = index;
-                        });
-                      },
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${index + 1}: ${point.latitude},${point.longitude}', // Shows marker number (1-based)
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 8,
-                            ),
-                          ),
-                          Icon(
-                            Icons.location_pin,
-                            color: _selectedIndex == index
-                                ? Colors.blue
-                                : Colors.red,
-                            size:
-                                40, // Slightly reduced size to accommodate text
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              PolygonLayer(
-                polygons: [
-                  if (_polygonPoints.length > 2)
-                    Polygon(
-                      points: _polygonPoints,
-                      color: Colors.green.withOpacity(0.3),
-                      borderColor: Colors.green,
-                      borderStrokeWidth: 2,
-                    ),
-                  if (_offpolygonPoints.length > 2)
-                    Polygon(
-                      points: _offpolygonPoints,
-                      color: Colors.red.withOpacity(0.3),
-                      borderColor: Colors.red,
-                      borderStrokeWidth: 2,
-                    ),
-                ],
-              ),
+              if (_isLoadingLocation)
+                Center(
+                  child: CircularProgressIndicator(),
+                ),
             ],
           ),
         ),
@@ -226,8 +292,14 @@ class _gpsPageState extends State<gpsPage> {
                     child: Text('Reset list'),
                   ),
                   FilledButton(
+                    onPressed: _getCurrentLocation,
+                    child: Text('Get Location'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                    ),
+                  ),
+                  FilledButton(
                     onPressed: () {
-                      double i = -1;
                       if (_polygonPoints.length < 3) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -249,7 +321,7 @@ class _gpsPageState extends State<gpsPage> {
                               createOptimizedBluetoothMessage(
                                 _offpolygonPoints,
                               );
-                          widget.connection.writeString(bluetoothMessage);
+                          gpsDataNotifier.value = bluetoothMessage;
                         });
                       }
                     },
@@ -281,11 +353,10 @@ class _gpsPageState extends State<gpsPage> {
   }
 
   List<LatLng> generateMowingPath(
-    List<LatLng> polygonVertices, {
+    List<LatLng> polygonVertices, {  
     double cuttingWidth = 1.0, // 1 meter cutting width
     double overlap = 0.2, // 20% overlap between passes
   }) {
-    final Distance distance = Distance();
     final List<LatLng> mowingPath = [];
 
     if (polygonVertices.length < 3) return mowingPath;
@@ -329,19 +400,16 @@ class _gpsPageState extends State<gpsPage> {
         final List<LatLng> linePoints = [];
         double lng = reverseDirection ? lineMaxLng : lineMinLng;
         final double endLng = reverseDirection ? lineMinLng : lineMaxLng;
-        final double step = reverseDirection ? -lngStep : lngStep;
 
-        while ((step > 0 && lng <= endLng) || (step < 0 && lng >= endLng)) {
-          linePoints.add(LatLng(lat, lng));
-          lng += step;
-        }
+        linePoints.add(LatLng(lat, lng));
+        linePoints.add(LatLng(lat,endLng));
 
         if (reverseDirection) linePoints.reversed;
         mowingPath.addAll(linePoints);
         reverseDirection = !reverseDirection;
       }
     }
-
+    print(mowingPath);
     return mowingPath;
   }
 
@@ -415,17 +483,16 @@ class _gpsPageState extends State<gpsPage> {
 
   String createOptimizedBluetoothMessage(List<LatLng> points) {
     final optimized = optimizeGeoData(points);
-
+    print(optimized.latSuffixes.length);
     // Create compact message format:
     // "PREFIX|latPrefix|longPrefix|latSuffix1,longSuffix1|latSuffix2,longSuffix2|..."
     final buffer = StringBuffer();
-    buffer.write('PREFIX|${optimized.latPrefix}|${optimized.longPrefix}|');
+    buffer.write('P|${optimized.latPrefix}|${optimized.longPrefix}|');
 
     for (int i = 0; i < optimized.latSuffixes.length; i++) {
       if (i > 0) buffer.write('|');
       buffer.write('${optimized.latSuffixes[i]},${optimized.longSuffixes[i]}');
     }
-
     return buffer.toString();
   }
 }

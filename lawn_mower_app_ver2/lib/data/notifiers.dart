@@ -2,6 +2,7 @@
 //ValueListenalbeBuilder: receiver data
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_classic/flutter_blue_classic.dart';
@@ -13,3 +14,4 @@ ValueNotifier <BluetoothConnection?> bluetoothDeviceAdressNotifier = ValueNotifi
 ValueNotifier <BluetoothDevice?> bluetoothDeviceDataNotifier = ValueNotifier(null);
 ValueNotifier <StreamSubscription?> readSubscriptionNotifier = ValueNotifier(null);
 ValueNotifier <bool> subscribtionStateNotifier = ValueNotifier(false);
+ValueNotifier <String> gpsDataNotifier = ValueNotifier('');

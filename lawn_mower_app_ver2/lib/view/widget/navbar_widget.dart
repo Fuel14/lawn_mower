@@ -13,7 +13,7 @@ class NavbarWidget extends StatelessWidget {
           destinations: [
             NavigationDestination(
               icon: Icon(Icons.home), 
-              label: 'Home'
+              label: 'Home',
             ),
             NavigationDestination(
               icon: Icon(Icons.bluetooth),

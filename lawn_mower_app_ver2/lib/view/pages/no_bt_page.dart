@@ -3,8 +3,8 @@ import 'package:lawn_mower_app_ver2/data/constants.dart';
 import 'package:lawn_mower_app_ver2/view/widget/containerWidget.dart';
 import 'package:lawn_mower_app_ver2/view/widget/hero_widget.dart';
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class NoBtPage extends StatelessWidget {
+  const NoBtPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +25,7 @@ class HomePage extends StatelessWidget {
                     HeroWidget(),
                     SizedBox(height: 20.0),
                     Card(
-                      child: Text("This is homepage",style: KTextStyle.titleBoldText,),
+                      child: Text("U need to connect bluetooth device first",style: KTextStyle.titleBoldText,),
                     )
                   ],
                 ),
