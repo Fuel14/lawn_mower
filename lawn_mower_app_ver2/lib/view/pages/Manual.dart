@@ -31,24 +31,24 @@ class _ManualPageState extends State<ManualPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([5]); widget.connection.output.add(bt_switch_data);}, child: Text('Play Sound 1')),
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([6]); widget.connection.output.add(bt_switch_data);}, child: Text('Play Sound 2')),
+                FilledButton(onPressed: () {widget.connection.writeString("S1");}, child: Text('Play Sound 1')),
+                FilledButton(onPressed: () {widget.connection.writeString("S2");}, child: Text('Play Sound 2')),
               ],
             ),
             SizedBox(height: 20.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([7]); widget.connection.output.add(bt_switch_data);}, child: Text('Play Sound 3')),
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([8]); widget.connection.output.add(bt_switch_data);}, child: Text('Play Sound 4')),
+                FilledButton(onPressed: () {widget.connection.writeString("S3");}, child: Text('Play Sound 3')),
+                FilledButton(onPressed: () {widget.connection.writeString("S4");}, child: Text('Play Sound 4')),
               ],
             ),
             SizedBox(height: 20.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([9]); widget.connection.output.add(bt_switch_data);}, child: Text('LED 1')),
-                FilledButton(onPressed: () {bt_switch_data = Uint8List.fromList([10]); widget.connection.output.add(bt_switch_data);}, child: Text('LED 2')),
+                FilledButton(onPressed: () {widget.connection.writeString("S5");}, child: Text('LED 1')),
+                FilledButton(onPressed: () {widget.connection.writeString("S6");}, child: Text('LED 2')),
               ],
             ),
             SizedBox(height: 100.0),
@@ -61,22 +61,8 @@ class _ManualPageState extends State<ManualPage> {
                 arrowsDecoration: JoystickArrowsDecoration(color: Colors.blue),
               ),
               listener: (details) {
-                if(details.x >0 && details.y <0){
-                  bt_data = Uint8List.fromList([1,(details.x.abs()*255).round(),(details.y.abs()*255).round(),69]);   
-                }
-                else if(details.x <0 && details.y <0){
-                  bt_data = Uint8List.fromList([2,(details.x.abs()*255).round(),(details.y.abs()*255).round(),69]);   
-                }
-                else if(details.x <0 && details.y >0){
-                  bt_data = Uint8List.fromList([3,(details.x.abs()*255).round(),(details.y.abs()*255).round(),69]);   
-                }
-                else if(details.x >0 && details.y >0){
-                  bt_data = Uint8List.fromList([4,(details.x.abs()*255).round(),(details.y.abs()*255).round(),69]);   
-                }
-                else if(details.x ==0 && details.y ==0){
-                  bt_data = Uint8List.fromList([0,(details.x.abs()*255).round(),(details.y.abs()*255).round(),69]);   
-                }
-                widget.connection.output.add(bt_data);
+                widget.connection.writeString("x${(details.x*255).round()}");
+                widget.connection.writeString("y${(details.y*255).round()}");
               },
               period: Duration(milliseconds: 200),
             ),
