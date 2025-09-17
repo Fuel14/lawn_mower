@@ -459,7 +459,7 @@ class _WidgetTreeState extends State<WidgetTree> {
       final chunkPoints = validPoints.sublist(startIndex, endIndex);
 
       // New header format: MSG_ID|TOTAL_CHUNKS|CURRENT_CHUNK|ORIGINAL_HEADER
-      final header = '$messageId|$totalChunks|$chunkIndex|$originalHeader';
+      final header = '$originalHeader|$totalChunks|$chunkIndex';
       final chunk = '$header|${chunkPoints.join('|')}|E';
 
       chunks.add(chunk);
