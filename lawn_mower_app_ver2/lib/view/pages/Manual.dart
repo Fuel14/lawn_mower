@@ -27,28 +27,35 @@ class _ManualPageState extends State<ManualPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(height: 100.0),
+            SizedBox(height: 50.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {widget.connection.writeString("S1");}, child: Text('Play Sound 1')),
-                FilledButton(onPressed: () {widget.connection.writeString("S2");}, child: Text('Play Sound 2')),
+                FilledButton(onPressed: () {widget.connection.writeString("S7E");}, child: Text('Start Auto Driving')),
               ],
             ),
             SizedBox(height: 20.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {widget.connection.writeString("S3");}, child: Text('Play Sound 3')),
-                FilledButton(onPressed: () {widget.connection.writeString("S4");}, child: Text('Play Sound 4')),
+                FilledButton(onPressed: () {widget.connection.writeString("S1E");}, child: Text('Play Sound 1')),
+                FilledButton(onPressed: () {widget.connection.writeString("S2E");}, child: Text('Play Sound 2')),
               ],
             ),
             SizedBox(height: 20.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                FilledButton(onPressed: () {widget.connection.writeString("S5");}, child: Text('LED 1')),
-                FilledButton(onPressed: () {widget.connection.writeString("S6");}, child: Text('LED 2')),
+                FilledButton(onPressed: () {widget.connection.writeString("S3E");}, child: Text('Play Sound 3')),
+                FilledButton(onPressed: () {widget.connection.writeString("S4E");}, child: Text('Play Sound 4')),
+              ],
+            ),
+            SizedBox(height: 20.0),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                FilledButton(onPressed: () {widget.connection.writeString("S5E");}, child: Text('LED 1')),
+                FilledButton(onPressed: () {widget.connection.writeString("S6E");}, child: Text('LED 2')),
               ],
             ),
             SizedBox(height: 100.0),
@@ -61,8 +68,7 @@ class _ManualPageState extends State<ManualPage> {
                 arrowsDecoration: JoystickArrowsDecoration(color: Colors.blue),
               ),
               listener: (details) {
-                widget.connection.writeString("x${(details.x*255).round()}");
-                widget.connection.writeString("y${(details.y*255).round()}");
+                widget.connection.writeString("x${(details.x*255).round()}y${(details.y*255).round()}E");
               },
               period: Duration(milliseconds: 200),
             ),

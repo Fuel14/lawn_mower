@@ -494,7 +494,7 @@ class _WidgetTreeState extends State<WidgetTree> {
     print('Sent chunk ${_currentChunkIndex + 1}/$_totalChunks');
 
     // Add delay between chunks (adjust as needed)
-    Future.delayed(Duration(milliseconds: 1000), () {
+    Future.delayed(Duration(milliseconds: 2000), () {
       if (mounted && _isSending) {
         setState(() {
           _currentChunkIndex++;

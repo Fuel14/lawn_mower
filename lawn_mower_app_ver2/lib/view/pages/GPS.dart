@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:lawn_mower_app_ver2/data/notifiers.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+
 class OptimizedGeoData {
   final String latPrefix;
   final String longPrefix;
@@ -69,30 +70,31 @@ class _gpsPageState extends State<gpsPage> {
 
   Future<void> _getCurrentLocation() async {
     setState(() => _isLoadingLocation = true);
-    
+
     try {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      
+
       setState(() {
         _currentLocation = LatLng(position.latitude, position.longitude);
         _isLoadingLocation = false;
       });
-      
+
       // Center map on current location
       _mapController.move(_currentLocation!, 15);
-      
     } catch (e) {
       setState(() => _isLoadingLocation = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error getting location: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error getting location: $e')));
     }
   }
 
   void _startLocationUpdates() {
-    _positionStreamSubscription = Geolocator.getPositionStream().listen((Position position) {
+    _positionStreamSubscription = Geolocator.getPositionStream().listen((
+      Position position,
+    ) {
       if (mounted) {
         setState(() {
           _currentLocation = LatLng(position.latitude, position.longitude);
@@ -105,8 +107,9 @@ class _gpsPageState extends State<gpsPage> {
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
   }
+
   @override
-    Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return Column(
       children: [
         Expanded(
@@ -137,11 +140,13 @@ class _gpsPageState extends State<gpsPage> {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.KMITL.lawnmowerapp',
                     tileProvider: NetworkTileProvider(
                       headers: {
-                        'User-Agent': 'LawnMowerApp/2.0 (com.yourcompany.lawnmowerapp)',
+                        'User-Agent':
+                            'LawnMowerApp/2.0 (com.yourcompany.lawnmowerapp)',
                       },
                     ),
                     keepBuffer: 30,
@@ -231,9 +236,7 @@ class _gpsPageState extends State<gpsPage> {
                 ],
               ),
               if (_isLoadingLocation)
-                Center(
-                  child: CircularProgressIndicator(),
-                ),
+                Center(child: CircularProgressIndicator()),
             ],
           ),
         ),
@@ -259,8 +262,8 @@ class _gpsPageState extends State<gpsPage> {
                           : Colors.teal,
                     ),
                     child: _isDrawing == true
-                        ? Text('Now Adding corner')
-                        : Text('To Adding Corner'),
+                        ? Text('Now Add P')
+                        : Text('To Add P'),
                   ),
                   FilledButton(
                     onPressed: () {
@@ -276,6 +279,16 @@ class _gpsPageState extends State<gpsPage> {
                     child: _isInteractive == true
                         ? Text('To Lock Map')
                         : Text('Locking Map'),
+                  ),
+                  FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        final bluetoothMessage =
+                            createOptimizedBluetoothMessage(_polygonPoints);
+                        gpsDataNotifier.value = bluetoothMessage;
+                      });
+                    },
+                    child: Text('Save debug'),
                   ),
                 ],
               ),
@@ -294,9 +307,7 @@ class _gpsPageState extends State<gpsPage> {
                   FilledButton(
                     onPressed: _getCurrentLocation,
                     child: Text('Get Location'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                    ),
+                    style: FilledButton.styleFrom(backgroundColor: Colors.blue),
                   ),
                   FilledButton(
                     onPressed: () {
@@ -353,7 +364,7 @@ class _gpsPageState extends State<gpsPage> {
   }
 
   List<LatLng> generateMowingPath(
-    List<LatLng> polygonVertices, {  
+    List<LatLng> polygonVertices, {
     double cuttingWidth = 1.0, // 1 meter cutting width
     double overlap = 0.2, // 20% overlap between passes
   }) {
@@ -402,7 +413,7 @@ class _gpsPageState extends State<gpsPage> {
         final double endLng = reverseDirection ? lineMinLng : lineMaxLng;
 
         linePoints.add(LatLng(lat, lng));
-        linePoints.add(LatLng(lat,endLng));
+        linePoints.add(LatLng(lat, endLng));
 
         if (reverseDirection) linePoints.reversed;
         mowingPath.addAll(linePoints);
